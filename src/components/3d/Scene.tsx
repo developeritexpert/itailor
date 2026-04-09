@@ -4,9 +4,10 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, ContactShadows, Environment } from '@react-three/drei';
 import { Suspense } from 'react';
 import { useConfiguratorStore } from '@/store/useConfiguratorStore';
-import { TShirt } from './models/TShirt';
+import { ClothingModel } from './models/ClothingModel';
+import { ModelType } from '@/store/useConfiguratorStore';
 
-export const Scene = () => {
+export const Scene = ({ modelType }: { modelType: ModelType }) => {
   const isAutoRotate = useConfiguratorStore((state) => state.isAutoRotate);
 
   return (
@@ -16,7 +17,7 @@ export const Scene = () => {
       
       <Suspense fallback={null}>
         <Stage environment="city" intensity={0.6} shadows={false}>
-          <TShirt />
+          <ClothingModel modelType={modelType} />
         </Stage>
       </Suspense>
 

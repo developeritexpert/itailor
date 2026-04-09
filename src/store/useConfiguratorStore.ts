@@ -5,7 +5,7 @@ import { devtools, subscribeWithSelector } from 'zustand/middleware';
  * Types for the Configurator
  */
 
-export type ModelType = 'shirt' | 'trouser' | 'shoes'; // Expandable
+export type ModelType = 'shirt' | 't_shirt' | 'trouser' | 'shoes'; // Expandable
 
 export interface TextureConfig {
   id: string;
@@ -46,8 +46,9 @@ export interface ConfiguratorState {
 const DEFAULT_CONFIG: Record<ModelType, Record<string, ModelPartConfig>> = {
   shirt: {
     body: { partName: 'body', activeTexture: null, activeColor: '#ffffff' },
-    sleeves: { partName: 'sleeves', activeTexture: null, activeColor: '#ffffff' },
-    collar: { partName: 'collar', activeTexture: null, activeColor: '#ffffff' },
+  },
+  t_shirt: {
+    body: { partName: 'body', activeTexture: null, activeColor: '#ffffff' },
   },
   trouser: {
     waist: { partName: 'waist', activeTexture: null, activeColor: '#333333' },
