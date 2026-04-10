@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 
 /**
- * Types for the Configurator
+ * High-Level Types
  */
 
-export type ModelType = 'shirt' | 't_shirt' | 'trouser' | 'shoes'; // Expandable
+export type ModelType = 'shirt' | 't_shirt' | 'trouser';
 
 export interface TextureConfig {
   id: string;
@@ -14,120 +14,111 @@ export interface TextureConfig {
   color?: string;
 }
 
-export interface ModelPartConfig {
-  partName: string;
-  activeTexture: TextureConfig | null;
-  activeColor: string;
+export interface PartConfig {
+  fabric: TextureConfig | null;
+  color: string;
+  visible: boolean;
 }
 
 export interface ConfiguratorState {
   // --- State ---
   activeModel: ModelType;
-  config: Record<ModelType, Record<string, ModelPartConfig>>; // parts mapped by model type
+  activePart: string; // The part currently being edited in the UI (e.g., 'collar')
+  
+  // Nested config: [modelType][partName]
+  config: Record<ModelType, Record<string, PartConfig>>;
+  
   isAutoRotate: boolean;
   isLoading: boolean;
-  cameraPosition: [number, number, number];
 
   // --- Actions ---
   setActiveModel: (model: ModelType) => void;
-  updatePartTexture: (model: ModelType, partName: string, texture: TextureConfig) => void;
-  updatePartColor: (model: ModelType, partName: string, color: string) => void;
-  resetModelConfig: (model: ModelType) => void;
+  setActivePart: (part: string) => void;
+  
+  // Precision update: Update a specific part of a specific model
+  updatePartConfig: (
+    model: ModelType, 
+    partName: string, 
+    updates: Partial<PartConfig>
+  ) => void;
+
   setAutoRotate: (active: boolean) => void;
   setLoading: (loading: boolean) => void;
-  setCameraPosition: (pos: [number, number, number]) => void;
+  
+  // Helper to reset a whole model
+  resetModel: (model: ModelType) => void;
 }
 
 /**
- * Initial State Definitions
- * This can be moved to a constants file later
+ * Default Initial State
  */
 
-const DEFAULT_CONFIG: Record<ModelType, Record<string, ModelPartConfig>> = {
+const createDefaultPart = (): PartConfig => ({
+  fabric: null,
+  color: '#ffffff',
+  visible: true,
+});
+
+const INITIAL_CONFIG: Record<ModelType, Record<string, PartConfig>> = {
   shirt: {
-    body: { partName: 'body', activeTexture: null, activeColor: '#ffffff' },
+    body: createDefaultPart(),
+    collar: createDefaultPart(),
+    sleeves: createDefaultPart(),
+    pocket: createDefaultPart(),
+    buttons: { ...createDefaultPart(), color: '#eeeeee' },
   },
   t_shirt: {
-    body: { partName: 'body', activeTexture: null, activeColor: '#ffffff' },
+    body: createDefaultPart(),
+    sleeves: createDefaultPart(),
+    neck: createDefaultPart(),
   },
   trouser: {
-    waist: { partName: 'waist', activeTexture: null, activeColor: '#333333' },
-    legs: { partName: 'legs', activeTexture: null, activeColor: '#333333' },
-    pockets: { partName: 'pockets', activeTexture: null, activeColor: '#333333' },
-  },
-  shoes: {
-    sole: { partName: 'sole', activeTexture: null, activeColor: '#111111' },
-    upper: { partName: 'upper', activeTexture: null, activeColor: '#eeeeee' },
-    laces: { partName: 'laces', activeTexture: null, activeColor: '#ffffff' },
+    waist: createDefaultPart(),
+    legs: createDefaultPart(),
+    pockets: createDefaultPart(),
   },
 };
 
 export const useConfiguratorStore = create<ConfiguratorState>()(
   devtools(
-    subscribeWithSelector((set, get) => ({
+    subscribeWithSelector((set) => ({
       // --- Initial State ---
       activeModel: 'shirt',
-      config: DEFAULT_CONFIG,
+      activePart: 'body',
+      config: INITIAL_CONFIG,
       isAutoRotate: false,
       isLoading: false,
-      cameraPosition: [5, 2, 5],
 
       // --- Actions ---
-      setActiveModel: (model) => set({ activeModel: model }, false, 'setActiveModel'),
+      setActiveModel: (model) => set({ activeModel: model, activePart: 'body' }, false, 'setActiveModel'),
+      
+      setActivePart: (part) => set({ activePart: part }, false, 'setActivePart'),
 
-      updatePartTexture: (model, partName, texture) =>
-        set(
-          (state) => ({
-            config: {
-              ...state.config,
-              [model]: {
-                ...state.config[model],
-                [partName]: {
-                  ...state.config[model][partName],
-                  activeTexture: texture,
-                },
-              },
-            },
-          }),
-          false,
-          `updatePartTexture/${model}/${partName}`
-        ),
-
-      updatePartColor: (model, partName, color) =>
-        set(
-          (state) => ({
-            config: {
-              ...state.config,
-              [model]: {
-                ...state.config[model],
-                [partName]: {
-                  ...state.config[model][partName],
-                  activeColor: color,
-                },
-              },
-            },
-          }),
-          false,
-          `updatePartColor/${model}/${partName}`
-        ),
-
-      resetModelConfig: (model) =>
-        set(
-          (state) => ({
-            config: {
-              ...state.config,
-              [model]: DEFAULT_CONFIG[model],
-            },
-          }),
-          false,
-          `resetModelConfig/${model}`
-        ),
+      updatePartConfig: (model, partName, updates) => 
+        set((state) => ({
+          config: {
+            ...state.config,
+            [model]: {
+              ...state.config[model],
+              [partName]: {
+                ...state.config[model][partName],
+                ...updates
+              }
+            }
+          }
+        }), false, `update/${model}/${partName}`),
 
       setAutoRotate: (active) => set({ isAutoRotate: active }, false, 'setAutoRotate'),
-
+      
       setLoading: (loading) => set({ isLoading: loading }, false, 'setLoading'),
 
-      setCameraPosition: (pos) => set({ cameraPosition: pos }, false, 'setCameraPosition'),
+      resetModel: (model) => 
+        set((state) => ({
+          config: {
+            ...state.config,
+            [model]: INITIAL_CONFIG[model]
+          }
+        }), false, `reset/${model}`)
     }))
   )
 );

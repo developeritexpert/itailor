@@ -3,56 +3,128 @@
 import React, { useMemo, useEffect } from 'react';
 import { useGLTF, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
-import { useConfiguratorStore, ModelType } from '@/store/useConfiguratorStore';
-import { MODELS_CONFIG, TEXTURES } from '@/lib/constants';
+import { useConfiguratorStore, ModelType, PartConfig } from '@/store/useConfiguratorStore';
+import { MODELS_CONFIG } from '@/lib/constants';
 
 interface ClothingModelProps {
   modelType: ModelType;
 }
 
-export function ClothingModel({ modelType }: ClothingModelProps) {
-  // 1. Get current configuration from Store for this specific model type
-  const activeModel = useConfiguratorStore((state) => state.activeModel);
-  const partConfig = useConfiguratorStore((state) => state.config[modelType]);
+/**
+ * Performance-Optimized Part Renderer
+ * Optimized for PBR rendering with high-quality textures
+ */
+const PartRenderer = ({ 
+  meshNames, 
+  config, 
+  nodes,
+  highlight = false
+}: { 
+  meshNames: string[], 
+  config: PartConfig, 
+  nodes: Record<string, THREE.Object3D>,
+  highlight?: boolean
+}) => {
+  // Use a high-quality default fabric texture
+  const defaultTextureUrl = '/textures/shirt/15209.jpg';
+  const textureUrl = config.fabric?.url || defaultTextureUrl;
   
-  // 2. Load the correct GLTF model based on prop
-  const config = MODELS_CONFIG[modelType];
-  const { scene } = useGLTF(config.path);
-
-  // 3. Prepare textures to be loaded
-  // We use the first texture of the model type if none is selected
-  const defaultTextureUrl = TEXTURES[modelType][0].url;
-  const textureUrl = partConfig.body.activeTexture?.url || defaultTextureUrl;
+  // DRYS: only load what is needed
   const texture = useTexture(textureUrl);
 
-  // Configure texture properties
+  // Performance: memoize texture configuration
   useMemo(() => {
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1, 1);
-    texture.flipY = false;
-    texture.colorSpace = THREE.SRGBColorSpace;
-  }, [texture]);
+    if (texture) {
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(1, 1);
+      texture.flipY = false;
+      texture.colorSpace = THREE.SRGBColorSpace; // Critical for non-washed colors
+      texture.anisotropy = 16; // Optimized sharpness at flat angles
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+    }
+  }, [texture, textureUrl]);
 
-  // 4. Apply texture to the model
-  useMemo(() => {
-    scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        
-        // Ensure new material to prevent shared state issues
-        mesh.material = new THREE.MeshStandardMaterial({
-          map: texture,
-          color: partConfig.body.activeColor,
-          roughness: 0.7,
-          metalness: 0.1
-        });
-      }
+  // Premium Material: Using MeshStandardMaterial with PBR logic
+  const material = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      map: texture,
+      color: highlight ? '#fbbf24' : config.color, // Gold highlight for selecting
+      roughness: 0.85, // High roughness for realistic fabric look
+      metalness: 0.05, // Slight metallic sheen for some fabrics
+      emissive: highlight ? '#fbbf24' : '#000000',
+      emissiveIntensity: highlight ? 0.35 : 0,
+      envMapIntensity: 0.8, // Respect global studio reflective map
+      side: THREE.DoubleSide,
+      transparent: false,
     });
-  }, [scene, texture, partConfig.body.activeColor]);
+  }, [texture, config.color, highlight]);
 
-  return <primitive object={scene} />;
+  if (!config.visible) return null;
+
+  return (
+    <>
+      {meshNames.map((name) => {
+        const node = nodes[name] as THREE.Mesh;
+        if (!node) return null;
+        
+        return (
+          <mesh
+            key={name}
+            geometry={node.geometry}
+            material={material}
+            position={node.position}
+            rotation={node.rotation}
+            scale={node.scale}
+            frustumCulled={true} // Performance: only render if on screen
+          />
+        );
+      })}
+    </>
+  );
+};
+
+
+export function ClothingModel({ modelType }: ClothingModelProps) {
+  const modelConfig = MODELS_CONFIG[modelType];
+  const { nodes } = useGLTF(modelConfig.path);
+  const partsConfig = useConfiguratorStore((state) => state.config[modelType]);
+  const activePart = useConfiguratorStore((state) => state.activePart);
+
+  // Performance: only identify meshes once
+  const mappedMeshNames = useMemo(() => Object.values(modelConfig.meshMap).flat(), [modelConfig.meshMap]);
+  const unmappedMeshNames = useMemo(() => {
+    return Object.keys(nodes).filter(key => 
+      (nodes[key] as any).isMesh && !mappedMeshNames.includes(key)
+    );
+  }, [nodes, mappedMeshNames]);
+
+  return (
+    // Applied standing-up rotation correction
+    <group rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Precision Rendering: Each part has its own performance scope */}
+      {Object.entries(modelConfig.meshMap).map(([partKey, meshNames]) => (
+        <PartRenderer 
+          key={partKey}
+          meshNames={meshNames}
+          config={partsConfig[partKey]}
+          nodes={nodes}
+          highlight={activePart === partKey}
+        />
+      ))}
+
+      {/* Fallback rendering for any unmapped meshes */}
+      {unmappedMeshNames.length > 0 && (
+        <PartRenderer 
+          meshNames={unmappedMeshNames}
+          config={partsConfig.body}
+          nodes={nodes}
+        />
+      )}
+    </group>
+  );
 }
 
-// Preload common models
+// Low-latency Preloading
 useGLTF.preload(MODELS_CONFIG.shirt.path);
 useGLTF.preload(MODELS_CONFIG.t_shirt.path);

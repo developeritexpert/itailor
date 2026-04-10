@@ -1,10 +1,11 @@
 import { ModelType } from '@/store/useConfiguratorStore';
 
 export interface ModelMetadata {
-  id: ModelType;
+  id: string;
   label: string;
-  path: string; // Path to .glb file
-  parts: string[]; // Mesh names in the GLB
+  path: string;
+  parts: string[];
+  meshMap: Record<string, string[]>; // Logical Part -> GLB Mesh Names
   defaultCameraPosition: [number, number, number];
 }
 
@@ -13,22 +14,27 @@ export const MODELS_CONFIG: Record<string, ModelMetadata> = {
     id: 'shirt',
     label: 'Formal Shirt',
     path: '/models/shirt.glb',
-    parts: ['body'],
-    defaultCameraPosition: [0, 0, 4],
+    parts: ['body', 'sleeves', 'collar', 'pocket', 'buttons'],
+    meshMap: {
+      body: ['Object_2', 'Object_3'],
+      sleeves: ['Object_4', 'Object_5'],
+      collar: ['Object_6', 'Object_7'],
+      pocket: ['Object_8'],
+      buttons: ['Object_9', 'Object_10', 'Object_11'],
+    },
+    defaultCameraPosition: [0, 0, 5],
   },
   t_shirt: {
     id: 't_shirt',
     label: 'T-Shirt',
     path: '/models/t_shirt.glb',
-    parts: ['body'],
+    parts: ['body', 'sleeves', 'neck'],
+    meshMap: {
+      body: ['Object_2'],
+      sleeves: ['Object_3', 'Object_4'],
+      neck: ['Object_5', 'Object_6'],
+    },
     defaultCameraPosition: [0, 0, 4],
-  },
-  trouser: {
-    id: 'trouser',
-    label: 'Chino Trousers',
-    path: '/models/trouser.glb',
-    parts: ['waist', 'legs', 'pockets'],
-    defaultCameraPosition: [0, 0, 8],
   },
 };
 
